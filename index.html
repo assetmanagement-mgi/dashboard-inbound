@@ -201,6 +201,19 @@ select:focus,input:focus{border-color:var(--accent)}
 .rp-btn-clear:hover{color:var(--red);border-color:#e8c0bc}
 .rp-btn-apply{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 .rp-btn-apply:hover{filter:brightness(1.08)}
+/* ============ RANGE PICKER ============ */
+.rp-range-wrap{display:none}
+.rp-range-wrap.visible{display:block}
+.rp-range-input-box{border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11.5px;color:var(--muted);cursor:pointer;background:#fff;transition:all .15s;text-align:center}
+.rp-range-input-box:hover{border-color:var(--accent)}
+.rp-range-input-box.active-field{border-color:var(--accent);background:#f0faf4;color:var(--accent);font-weight:600}
+.rp-range-input-box.has-value{color:var(--text);border-color:var(--accent)}
+.rp-range-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;margin-top:4px}
+.rp-day-cell.range-start{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;border-radius:5px 0 0 5px}
+.rp-day-cell.range-end{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;border-radius:0 5px 5px 0}
+.rp-day-cell.range-start.range-end{border-radius:5px}
+.rp-day-cell.in-range{background:#e0f0ea;border-color:#b8dfc9;border-radius:0}
+.rp-day-cell.range-start::after,.rp-day-cell.range-end::after{background:#fff}
 /* ============ RESPONSIVE BREAKPOINTS ============
    Desktop/PC large:  > 1400px  (container widens)
    Laptop:            1025px – 1400px (default/base styles above)
@@ -234,7 +247,8 @@ select:focus,input:focus{border-color:var(--accent)}
   .ctrl-group{width:100%;flex-wrap:wrap}
   .ctrl-group label{width:100%}
   .ctrl-divider{display:none}
-  .ctrl select,.ctrl input,#supplierTrigger,.cal-trigger{width:100%;min-width:0}
+  .ctrl select,.ctrl input,#supplierTrigger,#areaTrigger,#kecTrigger,#kelTrigger,.cal-trigger{width:100%;min-width:0}
+  #areaPanel,#kecPanel,#kelPanel{width:calc(100vw - 56px);max-width:320px}
   .cal-panel{width:calc(100vw - 56px);max-width:340px;left:0;right:auto}
   #supplierPanel{width:calc(100vw - 56px);max-width:320px}
   .hdr h1{font-size:15px}
@@ -305,10 +319,33 @@ select:focus,input:focus{border-color:var(--accent)}
       <div class="rp-tabs">
         <button class="rp-tab active" id="rp-tab-all"    onclick="rpSetMode('all',this)">Semua</button>
         <button class="rp-tab"        id="rp-tab-today"  onclick="rpSetMode('today',this)">Hari Ini</button>
+        <button class="rp-tab"        id="rp-tab-range"  onclick="rpSetMode('range',this)">Rentang</button>
         <button class="rp-tab"        id="rp-tab-custom" onclick="rpSetMode('custom',this)">Custom</button>
       </div>
       <!-- Today info bar -->
       <div class="rp-today-bar" id="rp-today-bar"></div>
+      <!-- RANGE PICKER -->
+      <div class="rp-range-wrap" id="rp-range-wrap">
+        <div style="display:flex;gap:10px;margin-bottom:8px">
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tanggal Mulai</div>
+            <div id="rp-range-start-display" class="rp-range-input-box" onclick="rpRangeSelectField('start')">Pilih tanggal</div>
+          </div>
+          <div style="display:flex;align-items:center;padding-top:16px;color:var(--muted);font-size:14px">→</div>
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Tanggal Akhir</div>
+            <div id="rp-range-end-display" class="rp-range-input-box" onclick="rpRangeSelectField('end')">Pilih tanggal</div>
+          </div>
+        </div>
+        <div class="rp-range-cal-nav">
+          <button class="rp-day-nav-btn" onclick="rpRangeNavMonth(-1)">◀</button>
+          <span class="rp-day-nav-label" id="rp-range-nav-label"></span>
+          <button class="rp-day-nav-btn" onclick="rpRangeNavMonth(1)">▶</button>
+        </div>
+        <div class="rp-dow-row" id="rp-range-dow-row"></div>
+        <div class="rp-day-grid" id="rp-range-day-grid"></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center" id="rp-range-hint">Klik untuk memilih tanggal mulai</div>
+      </div>
       <!-- View toggle: Per Bulan / Per Hari (shown in Custom mode) -->
       <div class="rp-view-toggle" id="rp-view-toggle">
         <button class="rp-view-btn active" id="rp-vt-month" onclick="rpSetView('month',this)">📅 Per Bulan</button>
@@ -343,25 +380,58 @@ select:focus,input:focus{border-color:var(--accent)}
     </div>
   </div>
   <div class="ctrl-divider"></div>
-  <div class="ctrl-group">
+  <div class="ctrl-group" style="position:relative">
     <label>Area:</label>
-    <select id="areaFilterDash" onchange="onFilterChange()">
-      <option value="">Semua Area</option>
-    </select>
+    <div id="areaTrigger" onclick="toggleAreaPanel()" style="min-width:150px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:var(--text);user-select:none">
+      <span id="areaTriggerLabel" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)">Semua Area</span>
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0">▾</span>
+    </div>
+    <div id="areaPanel" style="display:none;position:absolute;top:36px;left:0;z-index:50;background:#fff;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,0.10);border-radius:8px;width:240px;font-size:12px">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="areaSearch" placeholder="🔍 Cari area..." oninput="renderAreaCheckboxes()" autocomplete="off" style="width:100%;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--border)">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" style="flex:1;font-size:11px" onmousedown="selectAllAreas()">✔ Select All</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:11px" onmousedown="clearAreas()">✕ Clear</button>
+        </div>
+      </div>
+      <div id="areaCheckboxList" style="max-height:200px;overflow-y:auto;padding:4px 0"></div>
+    </div>
   </div>
   <div class="ctrl-divider"></div>
-  <div class="ctrl-group">
+  <div class="ctrl-group" style="position:relative">
     <label>Kecamatan:</label>
-    <select id="kecFilterDash" onchange="onKecFilterChange()">
-      <option value="">Semua Kecamatan</option>
-    </select>
+    <div id="kecTrigger" onclick="toggleKecPanel()" style="min-width:150px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:var(--text);user-select:none">
+      <span id="kecTriggerLabel" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)">Semua Kecamatan</span>
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0">▾</span>
+    </div>
+    <div id="kecPanel" style="display:none;position:absolute;top:36px;left:0;z-index:50;background:#fff;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,0.10);border-radius:8px;width:240px;font-size:12px">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="kecSearch" placeholder="🔍 Cari kecamatan..." oninput="renderKecCheckboxes()" autocomplete="off" style="width:100%;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--border)">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" style="flex:1;font-size:11px" onmousedown="selectAllKec()">✔ Select All</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:11px" onmousedown="clearKec()">✕ Clear</button>
+        </div>
+      </div>
+      <div id="kecCheckboxList" style="max-height:200px;overflow-y:auto;padding:4px 0"></div>
+    </div>
   </div>
   <div class="ctrl-divider"></div>
-  <div class="ctrl-group">
+  <div class="ctrl-group" style="position:relative">
     <label>Kelurahan:</label>
-    <select id="kelFilterDash" onchange="onKelFilterChange()">
-      <option value="">Semua Kelurahan</option>
-    </select>
+    <div id="kelTrigger" onclick="toggleKelPanel()" style="min-width:150px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:var(--text);user-select:none">
+      <span id="kelTriggerLabel" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)">Semua Kelurahan</span>
+      <span style="font-size:10px;color:var(--muted);flex-shrink:0">▾</span>
+    </div>
+    <div id="kelPanel" style="display:none;position:absolute;top:36px;left:0;z-index:50;background:#fff;border:1px solid var(--border);box-shadow:0 6px 20px rgba(0,0,0,0.10);border-radius:8px;width:240px;font-size:12px">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="kelSearch" placeholder="🔍 Cari kelurahan..." oninput="renderKelCheckboxes()" autocomplete="off" style="width:100%;font-size:12px;padding:5px 8px;border-radius:5px;border:1px solid var(--border)">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary" style="flex:1;font-size:11px" onmousedown="selectAllKel()">✔ Select All</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:11px" onmousedown="clearKel()">✕ Clear</button>
+        </div>
+      </div>
+      <div id="kelCheckboxList" style="max-height:200px;overflow-y:auto;padding:4px 0"></div>
+    </div>
   </div>
   <div class="ctrl-divider"></div>
   <div class="ctrl-group" style="position:relative">
@@ -634,12 +704,18 @@ let currentFilteredRows = [];
 let selAreaTab = null;
 
 // ===== DATE RANGE PICKER STATE =====
-let rpMode      = 'all';       // 'all' | 'today' | 'custom'
+let rpMode      = 'all';       // 'all' | 'today' | 'range' | 'custom'
 let rpCalView   = 'month';     // 'month' | 'day'
 let rpViewYear  = new Date().getFullYear();
 let rpViewMonth = new Date().getMonth();
 let rpSelMonths = new Set();   // 'YYYY-MM'
 let rpSelDays   = new Set();   // 'YYYY-MM-DD'
+// Range picker state
+let rpRangeStart = null;       // 'YYYY-MM-DD'
+let rpRangeEnd   = null;       // 'YYYY-MM-DD'
+let rpRangeField = 'start';    // which field is being selected: 'start' | 'end'
+let rpRangeViewYear  = new Date().getFullYear();
+let rpRangeViewMonth = new Date().getMonth();
 const _dateCounts  = {};       // ISO date -> rowcount
 const _monthCounts = {};       // 'YYYY-MM' -> rowcount
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -718,14 +794,17 @@ function initSelects(){
     const latest=allIso[allIso.length-1].split('-');
     rpViewYear=parseInt(latest[0],10);
     rpViewMonth=parseInt(latest[1],10)-1;
+    rpRangeViewYear=rpViewYear;
+    rpRangeViewMonth=rpViewMonth;
   }
   rpInit();
   updateCalTrigger();
 
-  const af=document.getElementById('areaFilterDash');
-  areas.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;af.appendChild(o)});
-  populateKecOptions('');
-  populateKelOptions('','');
+  // Populate area multi-select options
+  window._ALL_AREAS = areas;
+  updateAreaTriggerLabel();
+  populateKecOptions();
+  populateKelOptions();
 
   // Area tab date select
   const das=document.getElementById('dateSelectArea');
@@ -748,7 +827,13 @@ function initSelects(){
 
 function getDateFilteredRows(){
   let rows=[...DATA];
-  if(rpMode==='today'){
+  if(rpMode==='range'){
+    if(rpRangeStart){
+      const s=rpRangeStart;
+      const e=rpRangeEnd||rpRangeStart;
+      rows=rows.filter(r=>{ const d=toIsoDate(r.date); return d>=s && d<=e; });
+    }
+  } else if(rpMode==='today'){
     const t=new Date();
     const todayIso=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
     rows=rows.filter(r=>toIsoDate(r.date)===todayIso);
@@ -762,48 +847,43 @@ function getDateFilteredRows(){
   return rows;
 }
 
-function populateKecOptions(selectedArea){
-  const kcf=document.getElementById('kecFilterDash');
-  const prevVal=kcf.value;
-  kcf.innerHTML='<option value="">Semua Kecamatan</option>';
+function populateKecOptions(){
   let rows=getDateFilteredRows();
-  if(selectedArea) rows=rows.filter(r=>r.area===selectedArea);
+  if(SELECTED_AREAS.size) rows=rows.filter(r=>SELECTED_AREAS.has(r.area));
   const kecs=[...new Set(rows.map(r=>r.kec))].sort();
-  kecs.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;kcf.appendChild(o)});
-  kcf.value = kecs.includes(prevVal) ? prevVal : '';
+  window._ALL_KECS=kecs;
+  // Remove invalid selections
+  [...SELECTED_KECS].forEach(k=>{ if(!kecs.includes(k)) SELECTED_KECS.delete(k); });
+  updateKecTriggerLabel();
+  const panel=document.getElementById('kecPanel');
+  if(panel && panel.style.display==='block') renderKecCheckboxes();
 }
 
-function populateKelOptions(selectedArea,selectedKec){
-  const kf=document.getElementById('kelFilterDash');
-  const prevVal=kf.value;
-  kf.innerHTML='<option value="">Semua Kelurahan</option>';
+function populateKelOptions(){
   let rows=getDateFilteredRows();
-  if(selectedArea) rows=rows.filter(r=>r.area===selectedArea);
-  if(selectedKec) rows=rows.filter(r=>r.kec===selectedKec);
+  if(SELECTED_AREAS.size) rows=rows.filter(r=>SELECTED_AREAS.has(r.area));
+  if(SELECTED_KECS.size) rows=rows.filter(r=>SELECTED_KECS.has(r.kec));
   const kels=[...new Set(rows.map(r=>r.kel))].sort();
-  kels.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;kf.appendChild(o)});
-  kf.value = kels.includes(prevVal) ? prevVal : '';
+  window._ALL_KELS=kels;
+  [...SELECTED_KELS].forEach(k=>{ if(!kels.includes(k)) SELECTED_KELS.delete(k); });
+  updateKelTriggerLabel();
+  const panel=document.getElementById('kelPanel');
+  if(panel && panel.style.display==='block') renderKelCheckboxes();
 }
 
 function refreshLocationFilters(){
-  const area=document.getElementById('areaFilterDash').value;
-  populateKecOptions(area);
-  const kec=document.getElementById('kecFilterDash').value;
-  populateKelOptions(area,kec);
+  populateKecOptions();
+  populateKelOptions();
   refreshSupplierList();
 }
 
 function refreshSupplierList(){
-  const area=document.getElementById('areaFilterDash').value;
-  const kec=document.getElementById('kecFilterDash').value;
-  const kel=document.getElementById('kelFilterDash').value;
   let rows=getDateFilteredRows();
-  if(area) rows=rows.filter(r=>r.area===area);
-  if(kec)  rows=rows.filter(r=>r.kec===kec);
-  if(kel)  rows=rows.filter(r=>r.kel===kel);
+  if(SELECTED_AREAS.size) rows=rows.filter(r=>SELECTED_AREAS.has(r.area));
+  if(SELECTED_KECS.size)  rows=rows.filter(r=>SELECTED_KECS.has(r.kec));
+  if(SELECTED_KELS.size)  rows=rows.filter(r=>SELECTED_KELS.has(r.kel));
   const suppliers=[...new Set(rows.map(r=>r.supplier))].sort();
   window._ALL_SUPPLIERS=suppliers;
-  // Drop any previously-selected suppliers that are no longer in scope
   const valid=new Set(suppliers);
   let changed=false;
   [...SELECTED_SUPPLIERS].forEach(s=>{ if(!valid.has(s)){ SELECTED_SUPPLIERS.delete(s); changed=true; } });
@@ -812,38 +892,21 @@ function refreshSupplierList(){
   if(panel && panel.style.display==='block') renderSupplierCheckboxes();
 }
 
-function onKecFilterChange(){
-  const area=document.getElementById('areaFilterDash').value;
-  const kec=document.getElementById('kecFilterDash').value;
-  populateKelOptions(area,kec);
-  refreshSupplierList();
-  renderDashboard();
-}
-
-function onKelFilterChange(){
-  refreshSupplierList();
-  renderDashboard();
-}
-
 function getFilteredRows(){
-  const area=document.getElementById('areaFilterDash').value;
-  const kec=document.getElementById('kecFilterDash').value;
-  const kel=document.getElementById('kelFilterDash').value;
   let rows=getDateFilteredRows();
-  if(area) rows=rows.filter(r=>r.area===area);
-  if(kec) rows=rows.filter(r=>r.kec===kec);
-  if(kel) rows=rows.filter(r=>r.kel===kel);
+  if(SELECTED_AREAS.size) rows=rows.filter(r=>SELECTED_AREAS.has(r.area));
+  if(SELECTED_KECS.size) rows=rows.filter(r=>SELECTED_KECS.has(r.kec));
+  if(SELECTED_KELS.size) rows=rows.filter(r=>SELECTED_KELS.has(r.kel));
   if(SELECTED_SUPPLIERS.size) rows=rows.filter(r=>SELECTED_SUPPLIERS.has(r.supplier));
   return rows;
 }
 
 function getFilterLabel(){
-  const area=document.getElementById('areaFilterDash').value;
-  const kec=document.getElementById('kecFilterDash').value;
-  const kel=document.getElementById('kelFilterDash').value;
   const parts=[];
-  // Date label from new range picker
-  if(rpMode==='today'){
+  if(rpMode==='range' && rpRangeStart){
+    const fmtD=d=>formatDateLabel(fromIsoDate(d));
+    parts.push(rpRangeEnd&&rpRangeEnd!==rpRangeStart ? fmtD(rpRangeStart)+' – '+fmtD(rpRangeEnd) : fmtD(rpRangeStart));
+  } else if(rpMode==='today'){
     const t=new Date();
     parts.push(t.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}));
   } else if(rpMode==='custom'){
@@ -857,9 +920,12 @@ function getFilterLabel(){
       else parts.push(`${sorted.length} tanggal`);
     }
   }
-  if(area) parts.push(area);
-  if(kec) parts.push(kec);
-  if(kel) parts.push(kel);
+  if(SELECTED_AREAS.size===1) parts.push([...SELECTED_AREAS][0]);
+  else if(SELECTED_AREAS.size>1) parts.push(`${SELECTED_AREAS.size} area`);
+  if(SELECTED_KECS.size===1) parts.push([...SELECTED_KECS][0]);
+  else if(SELECTED_KECS.size>1) parts.push(`${SELECTED_KECS.size} kecamatan`);
+  if(SELECTED_KELS.size===1) parts.push([...SELECTED_KELS][0]);
+  else if(SELECTED_KELS.size>1) parts.push(`${SELECTED_KELS.size} kelurahan`);
   if(SELECTED_SUPPLIERS.size===1) parts.push([...SELECTED_SUPPLIERS][0]);
   else if(SELECTED_SUPPLIERS.size>1) parts.push(`${SELECTED_SUPPLIERS.size} supplier`);
   return parts.length?parts.join(' · '):null;
@@ -891,11 +957,16 @@ function rpSetMode(mode,btn){
   viewToggle.classList.remove('visible');
   document.getElementById('rp-month-wrap').classList.remove('visible');
   document.getElementById('rp-day-wrap').classList.remove('visible');
+  document.getElementById('rp-range-wrap').classList.remove('visible');
   preview.classList.remove('visible');
   if(mode==='today'){
     const t=new Date();
     todayBar.textContent='Hari ini: '+t.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     todayBar.classList.add('visible');
+  } else if(mode==='range'){
+    document.getElementById('rp-range-wrap').classList.add('visible');
+    rpRenderRangeCalendar();
+    rpUpdateRangeDisplays();
   } else if(mode==='custom'){
     viewToggle.classList.add('visible');
     rpRenderCurrentView();
@@ -1004,6 +1075,142 @@ function rpToggleDay(dStr,cell){
   rpUpdatePreview();
 }
 
+// ===== RANGE PICKER FUNCTIONS =====
+function rpRangeNavMonth(d){
+  rpRangeViewMonth+=d;
+  if(rpRangeViewMonth<0){rpRangeViewMonth=11;rpRangeViewYear--;}
+  if(rpRangeViewMonth>11){rpRangeViewMonth=0;rpRangeViewYear++;}
+  rpRenderRangeCalendar();
+}
+
+function rpRangeSelectField(field){
+  rpRangeField=field;
+  rpUpdateRangeDisplays();
+}
+
+function rpUpdateRangeDisplays(){
+  const sEl=document.getElementById('rp-range-start-display');
+  const eEl=document.getElementById('rp-range-end-display');
+  const hint=document.getElementById('rp-range-hint');
+  if(!sEl||!eEl) return;
+  const fmtD=d=>d?formatDateLabel(fromIsoDate(d)):null;
+  // Start box
+  sEl.textContent=fmtD(rpRangeStart)||'Pilih tanggal';
+  sEl.className='rp-range-input-box'+(rpRangeStart?' has-value':'')+(rpRangeField==='start'?' active-field':'');
+  // End box
+  eEl.textContent=fmtD(rpRangeEnd)||'Pilih tanggal';
+  eEl.className='rp-range-input-box'+(rpRangeEnd?' has-value':'')+(rpRangeField==='end'?' active-field':'');
+  // Hint
+  if(!rpRangeStart) hint.textContent='Klik untuk memilih tanggal mulai';
+  else if(!rpRangeEnd) hint.textContent='Klik untuk memilih tanggal akhir';
+  else hint.textContent='Rentang terpilih · klik kotak di atas untuk mengubah';
+}
+
+function rpRenderRangeCalendar(){
+  const today=new Date();
+  const todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  document.getElementById('rp-range-nav-label').textContent=MONTH_FULL[rpRangeViewMonth]+' '+rpRangeViewYear;
+  // DOW row
+  const dowEl=document.getElementById('rp-range-dow-row');
+  if(dowEl) dowEl.innerHTML=DOW_SHORT.map((d,i)=>'<div class="rp-dow'+(i===0?' sun':'')+'">'+d+'</div>').join('');
+  const grid=document.getElementById('rp-range-day-grid');
+  if(!grid) return;
+  grid.innerHTML='';
+  const first=new Date(rpRangeViewYear,rpRangeViewMonth,1);
+  const startDow=first.getDay();
+  const daysInMonth=new Date(rpRangeViewYear,rpRangeViewMonth+1,0).getDate();
+  const prevDays=new Date(rpRangeViewYear,rpRangeViewMonth,0).getDate();
+  // Prev month filler
+  for(let i=0;i<startDow;i++){
+    const cell=document.createElement('div');
+    cell.className='rp-day-cell other-mo empty-cell';
+    cell.textContent=prevDays-startDow+1+i;
+    grid.appendChild(cell);
+  }
+  // Current month days
+  for(let d=1;d<=daysInMonth;d++){
+    const dStr=rpRangeViewYear+'-'+String(rpRangeViewMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday=dStr===todayStr;
+    const hasData=!!_dateCounts[dStr];
+    const isStart=dStr===rpRangeStart;
+    const isEnd=dStr===rpRangeEnd;
+    const inRange=rpRangeStart&&rpRangeEnd&&dStr>rpRangeStart&&dStr<rpRangeEnd;
+    let cls='rp-day-cell';
+    if(hasData) cls+=' has-data';
+    if(isToday) cls+=' today-cell';
+    if(isStart) cls+=' range-start';
+    if(isEnd) cls+=' range-end';
+    if(inRange) cls+=' in-range';
+    const cell=document.createElement('div');
+    cell.className=cls;
+    cell.textContent=d;
+    cell.onclick=()=>rpRangeClickDay(dStr);
+    // Hover preview for end date
+    cell.onmouseenter=()=>rpRangeHover(dStr);
+    cell.onmouseleave=()=>rpRangeHover(null);
+    grid.appendChild(cell);
+  }
+  // Next month filler
+  const total=startDow+daysInMonth;
+  const rem=total%7===0?0:7-(total%7);
+  for(let i=1;i<=rem;i++){
+    const cell=document.createElement('div');
+    cell.className='rp-day-cell other-mo empty-cell';
+    cell.textContent=i;
+    grid.appendChild(cell);
+  }
+}
+
+let _rpRangeHoverDate=null;
+function rpRangeHover(dStr){
+  _rpRangeHoverDate=dStr;
+  if(rpRangeField!=='end'||!rpRangeStart||rpRangeEnd) return;
+  // Re-render with hover highlight
+  const grid=document.getElementById('rp-range-day-grid');
+  if(!grid) return;
+  grid.querySelectorAll('.rp-day-cell:not(.empty-cell)').forEach(cell=>{
+    const d=cell._dStr;
+    if(!d) return;
+    cell.classList.remove('in-range','range-end');
+    if(dStr&&d>rpRangeStart&&d<=dStr) cell.classList.add(d===dStr?'range-end':'in-range');
+  });
+}
+
+function rpRangeClickDay(dStr){
+  if(rpRangeField==='start'){
+    rpRangeStart=dStr;
+    // If end is before new start, clear it
+    if(rpRangeEnd&&rpRangeEnd<rpRangeStart) rpRangeEnd=null;
+    rpRangeField='end';
+  } else {
+    if(dStr<rpRangeStart){
+      // Clicked before start: swap
+      rpRangeEnd=rpRangeStart;
+      rpRangeStart=dStr;
+    } else {
+      rpRangeEnd=dStr;
+    }
+    rpRangeField='start';
+  }
+  rpRenderRangeCalendar();
+  rpUpdateRangeDisplays();
+  // Tag dStr on cells for hover
+  const grid=document.getElementById('rp-range-day-grid');
+  if(grid){
+    const daysInMonth=new Date(rpRangeViewYear,rpRangeViewMonth+1,0).getDate();
+    let idx=0;
+    const first=new Date(rpRangeViewYear,rpRangeViewMonth,1);
+    const startDow=first.getDay();
+    grid.querySelectorAll('.rp-day-cell').forEach((cell,i)=>{
+      const dayNum=i-startDow+1;
+      if(dayNum>=1&&dayNum<=daysInMonth){
+        const ds=rpRangeViewYear+'-'+String(rpRangeViewMonth+1).padStart(2,'0')+'-'+String(dayNum).padStart(2,'0');
+        cell._dStr=ds;
+      }
+    });
+  }
+}
+
 function rpUpdatePreview(){
   const bar=document.getElementById('rp-preview');
   if(rpCalView==='month' && rpSelMonths.size>0){
@@ -1020,6 +1227,10 @@ function rpUpdatePreview(){
 }
 
 function rpApply(){
+  if(rpMode==='range'){
+    if(!rpRangeStart) return;
+    if(!rpRangeEnd) rpRangeEnd=rpRangeStart;
+  }
   if(rpMode==='custom'){
     if(rpCalView==='month' && rpSelMonths.size===0) return;
     if(rpCalView==='day' && rpSelDays.size===0) return;
@@ -1035,12 +1246,14 @@ function rpClear(){
   rpMode='all';
   rpSelMonths.clear();
   rpSelDays.clear();
+  rpRangeStart=null; rpRangeEnd=null; rpRangeField='start';
   document.querySelectorAll('.rp-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('rp-tab-all').classList.add('active');
   document.getElementById('rp-today-bar').classList.remove('visible');
   document.getElementById('rp-view-toggle').classList.remove('visible');
   document.getElementById('rp-month-wrap').classList.remove('visible');
   document.getElementById('rp-day-wrap').classList.remove('visible');
+  document.getElementById('rp-range-wrap').classList.remove('visible');
   document.getElementById('rp-preview').classList.remove('visible');
   updateCalTrigger();
   refreshLocationFilters();
@@ -1053,6 +1266,18 @@ function updateCalTrigger(){
   if(!txt) return;
   if(rpMode==='all'){
     txt.textContent='Semua tanggal'; txt.classList.add('placeholder');
+    badge.style.display='none'; return;
+  }
+  if(rpMode==='range'){
+    if(rpRangeStart){
+      const fmtD=d=>formatDateLabel(fromIsoDate(d));
+      txt.textContent = rpRangeEnd&&rpRangeEnd!==rpRangeStart
+        ? fmtD(rpRangeStart)+' – '+fmtD(rpRangeEnd)
+        : fmtD(rpRangeStart);
+      txt.classList.remove('placeholder');
+    } else {
+      txt.textContent='Pilih rentang tanggal'; txt.classList.add('placeholder');
+    }
     badge.style.display='none'; return;
   }
   if(rpMode==='today'){
@@ -1087,8 +1312,16 @@ function toggleCalPanel(){
 }
 
 // Close cal panel on outside click
+// NOTE: we use e.composedPath() (captured at dispatch time) instead of
+// e.target.closest(), because clicking a day/month cell triggers an
+// immediate re-render that removes that cell from the DOM. By the time
+// this listener runs, e.target would be detached and closest() would
+// fail to find #cal-picker-wrap, incorrectly closing the panel.
 document.addEventListener('click',function(e){
-  if(!e.target.closest('#cal-picker-wrap')){
+  const path=typeof e.composedPath==='function'?e.composedPath():[];
+  const insidePicker=path.some(el=>el&&el.id==='cal-picker-wrap')
+    || (e.target && e.target.closest && e.target.closest('#cal-picker-wrap'));
+  if(!insidePicker){
     const panel=document.getElementById('cal-panel');
     const trigger=document.getElementById('cal-trigger');
     if(panel){ panel.classList.remove('open'); trigger.classList.remove('open'); }
@@ -1100,18 +1333,26 @@ function resetFilters(){
   rpMode='all';
   rpSelMonths.clear();
   rpSelDays.clear();
+  rpRangeStart=null; rpRangeEnd=null; rpRangeField='start';
   document.querySelectorAll('.rp-tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('rp-tab-all').classList.add('active');
   document.getElementById('rp-today-bar').classList.remove('visible');
   document.getElementById('rp-view-toggle').classList.remove('visible');
   document.getElementById('rp-month-wrap').classList.remove('visible');
   document.getElementById('rp-day-wrap').classList.remove('visible');
+  document.getElementById('rp-range-wrap').classList.remove('visible');
   document.getElementById('rp-preview').classList.remove('visible');
   updateCalTrigger();
   // Reset location filters
-  document.getElementById('areaFilterDash').value='';
-  document.getElementById('kecFilterDash').value='';
-  document.getElementById('kelFilterDash').value='';
+  SELECTED_AREAS.clear();
+  SELECTED_KECS.clear();
+  SELECTED_KELS.clear();
+  updateAreaTriggerLabel();
+  updateKecTriggerLabel();
+  updateKelTriggerLabel();
+  const as=document.getElementById('areaSearch'); if(as) as.value='';
+  const ks=document.getElementById('kecSearch'); if(ks) ks.value='';
+  const ls=document.getElementById('kelSearch'); if(ls) ls.value='';
   // Reset supplier
   SELECTED_SUPPLIERS.clear();
   const ss=document.getElementById('supplierSearch'); if(ss) ss.value='';
@@ -1576,6 +1817,210 @@ function exportJSON(){
 
 function download(filename,uri){
   const a=document.createElement('a');a.href=uri;a.download=filename;a.click();
+}
+
+// ===== AREA MULTI-SELECT =====
+let SELECTED_AREAS = new Set();
+
+function toggleAreaPanel(){
+  const p=document.getElementById('areaPanel');
+  const isOpen=p.style.display==='block';
+  p.style.display=isOpen?'none':'block';
+  if(!isOpen){ document.getElementById('areaSearch').focus(); renderAreaCheckboxes(); }
+}
+
+document.addEventListener('click',function(e){
+  const panel=document.getElementById('areaPanel');
+  const trigger=document.getElementById('areaTrigger');
+  if(panel&&trigger&&!panel.contains(e.target)&&!trigger.contains(e.target)){
+    panel.style.display='none';
+  }
+  const kp=document.getElementById('kecPanel');
+  const kt=document.getElementById('kecTrigger');
+  if(kp&&kt&&!kp.contains(e.target)&&!kt.contains(e.target)){
+    kp.style.display='none';
+  }
+  const lp=document.getElementById('kelPanel');
+  const lt=document.getElementById('kelTrigger');
+  if(lp&&lt&&!lp.contains(e.target)&&!lt.contains(e.target)){
+    lp.style.display='none';
+  }
+});
+
+function renderAreaCheckboxes(){
+  const q=(document.getElementById('areaSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_AREAS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  const list=document.getElementById('areaCheckboxList');
+  if(!matches.length){list.innerHTML='<div style="padding:10px 14px;color:var(--muted)">Tidak ditemukan</div>';return;}
+  list.innerHTML=matches.map(s=>{
+    const checked=SELECTED_AREAS.has(s);
+    const sid='ac_'+s.replace(/[^a-z0-9]/gi,'_');
+    return`<label for="${sid}" style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-bottom:1px solid #f5f4f0" onmouseover="this.style.background='#f0faf4'" onmouseout="this.style.background=''">
+      <input type="checkbox" id="${sid}" ${checked?'checked':''} onchange="toggleArea('${s.replace(/'/g,"\\'")}',this.checked)" style="cursor:pointer;accent-color:var(--accent)">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s}</span>
+    </label>`;
+  }).join('');
+}
+
+function toggleArea(name,checked){
+  if(checked) SELECTED_AREAS.add(name);
+  else SELECTED_AREAS.delete(name);
+  updateAreaTriggerLabel();
+  refreshLocationFilters();
+  renderDashboard();
+}
+
+function selectAllAreas(){
+  const q=(document.getElementById('areaSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_AREAS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  matches.forEach(s=>SELECTED_AREAS.add(s));
+  renderAreaCheckboxes();
+  updateAreaTriggerLabel();
+  refreshLocationFilters();
+  renderDashboard();
+}
+
+function clearAreas(){
+  SELECTED_AREAS.clear();
+  renderAreaCheckboxes();
+  updateAreaTriggerLabel();
+  refreshLocationFilters();
+  renderDashboard();
+}
+
+function updateAreaTriggerLabel(){
+  const lbl=document.getElementById('areaTriggerLabel');
+  const n=SELECTED_AREAS.size;
+  if(n===0){lbl.textContent='Semua Area';lbl.style.color='var(--muted)'}
+  else if(n===1){lbl.textContent=[...SELECTED_AREAS][0];lbl.style.color='var(--text)'}
+  else{lbl.textContent=`${n} area dipilih`;lbl.style.color='var(--accent)'}
+}
+
+// ===== KECAMATAN MULTI-SELECT =====
+let SELECTED_KECS = new Set();
+
+function toggleKecPanel(){
+  const p=document.getElementById('kecPanel');
+  const isOpen=p.style.display==='block';
+  p.style.display=isOpen?'none':'block';
+  if(!isOpen){ document.getElementById('kecSearch').focus(); renderKecCheckboxes(); }
+}
+
+function renderKecCheckboxes(){
+  const q=(document.getElementById('kecSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_KECS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  const list=document.getElementById('kecCheckboxList');
+  if(!matches.length){list.innerHTML='<div style="padding:10px 14px;color:var(--muted)">Tidak ditemukan</div>';return;}
+  list.innerHTML=matches.map(s=>{
+    const checked=SELECTED_KECS.has(s);
+    const sid='kc_'+s.replace(/[^a-z0-9]/gi,'_');
+    return`<label for="${sid}" style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-bottom:1px solid #f5f4f0" onmouseover="this.style.background='#f0faf4'" onmouseout="this.style.background=''">
+      <input type="checkbox" id="${sid}" ${checked?'checked':''} onchange="toggleKec('${s.replace(/'/g,"\\'")}',this.checked)" style="cursor:pointer;accent-color:var(--accent)">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s}</span>
+    </label>`;
+  }).join('');
+}
+
+function toggleKec(name,checked){
+  if(checked) SELECTED_KECS.add(name);
+  else SELECTED_KECS.delete(name);
+  updateKecTriggerLabel();
+  populateKelOptions();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function selectAllKec(){
+  const q=(document.getElementById('kecSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_KECS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  matches.forEach(s=>SELECTED_KECS.add(s));
+  renderKecCheckboxes();
+  updateKecTriggerLabel();
+  populateKelOptions();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function clearKec(){
+  SELECTED_KECS.clear();
+  renderKecCheckboxes();
+  updateKecTriggerLabel();
+  populateKelOptions();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function updateKecTriggerLabel(){
+  const lbl=document.getElementById('kecTriggerLabel');
+  const n=SELECTED_KECS.size;
+  if(n===0){lbl.textContent='Semua Kecamatan';lbl.style.color='var(--muted)'}
+  else if(n===1){lbl.textContent=[...SELECTED_KECS][0];lbl.style.color='var(--text)'}
+  else{lbl.textContent=`${n} kecamatan dipilih`;lbl.style.color='var(--accent)'}
+}
+
+// ===== KELURAHAN MULTI-SELECT =====
+let SELECTED_KELS = new Set();
+
+function toggleKelPanel(){
+  const p=document.getElementById('kelPanel');
+  const isOpen=p.style.display==='block';
+  p.style.display=isOpen?'none':'block';
+  if(!isOpen){ document.getElementById('kelSearch').focus(); renderKelCheckboxes(); }
+}
+
+function renderKelCheckboxes(){
+  const q=(document.getElementById('kelSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_KELS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  const list=document.getElementById('kelCheckboxList');
+  if(!matches.length){list.innerHTML='<div style="padding:10px 14px;color:var(--muted)">Tidak ditemukan</div>';return;}
+  list.innerHTML=matches.map(s=>{
+    const checked=SELECTED_KELS.has(s);
+    const sid='kl_'+s.replace(/[^a-z0-9]/gi,'_');
+    return`<label for="${sid}" style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-bottom:1px solid #f5f4f0" onmouseover="this.style.background='#f0faf4'" onmouseout="this.style.background=''">
+      <input type="checkbox" id="${sid}" ${checked?'checked':''} onchange="toggleKel('${s.replace(/'/g,"\\'")}',this.checked)" style="cursor:pointer;accent-color:var(--accent)">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s}</span>
+    </label>`;
+  }).join('');
+}
+
+function toggleKel(name,checked){
+  if(checked) SELECTED_KELS.add(name);
+  else SELECTED_KELS.delete(name);
+  updateKelTriggerLabel();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function selectAllKel(){
+  const q=(document.getElementById('kelSearch').value||'').trim().toLowerCase();
+  const all=window._ALL_KELS||[];
+  const matches=q?all.filter(s=>s.toLowerCase().includes(q)):all;
+  matches.forEach(s=>SELECTED_KELS.add(s));
+  renderKelCheckboxes();
+  updateKelTriggerLabel();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function clearKel(){
+  SELECTED_KELS.clear();
+  renderKelCheckboxes();
+  updateKelTriggerLabel();
+  refreshSupplierList();
+  renderDashboard();
+}
+
+function updateKelTriggerLabel(){
+  const lbl=document.getElementById('kelTriggerLabel');
+  const n=SELECTED_KELS.size;
+  if(n===0){lbl.textContent='Semua Kelurahan';lbl.style.color='var(--muted)'}
+  else if(n===1){lbl.textContent=[...SELECTED_KELS][0];lbl.style.color='var(--text)'}
+  else{lbl.textContent=`${n} kelurahan dipilih`;lbl.style.color='var(--accent)'}
 }
 
 // ===== SUPPLIER MULTI-SELECT =====
